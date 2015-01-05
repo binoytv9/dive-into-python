@@ -1,7 +1,10 @@
+import os
+import sys
 from UserDict import UserDict
 
 def stripnulls():
-	pass
+	"strip whitespace and nulls"
+	return data.replace("\00","").strip()
 
 class FileInfo(UserDict):
 	"store file metadata"
@@ -20,10 +23,43 @@ class MP3FileInfo(FileInfo):
 			"comment": ( 97,126,stripnulls),
 			"genre"  : (127,128,ord)  }
 
+	def __parse(self,filename):
+		"parse ID3v1.0 tags from MP3 file"
+		self.clear()
+		try:
+			fsock = open(filename,"rb",0)
+			try:
+				fsock.seek(-128,2)
+				tagdata = fsock.read(128)
+			finally:
+				fsock.close()
+			if tagdata[:3] == "TAG":
+				for tag,(start,end, parseFunc) in self.tagDataMap.items():
+					self[tag] = parseFunc(tagdata[start:end])
+		except IOError:
+			pass
+		
 	def __setitem__(self,key,item):
 		if key == "name" and item:
 			self.__parse(item)
 		FileInfo.__setitem__(self,key,item)
 
-	def __parse(self,item):
-		print 'this is private method shoooooo!!!'
+def listDirectory(directory,fileExtList):
+	"get list of file info objects for files of particular extensions"
+
+	fileList = [os.path.normcase(f) for f in os.listdir(directory)]
+	fielList = [os.path.join(directory,f) for f in fileList if os.path.splitext(f)[1] in fileExtList]
+
+	def getFileInfoClass(filename,module=sys.modules[FileInfo.__module__]):
+		"get file info class from filename extension"
+
+		subclass = "%sFileInfo" %os.path.splitext(filename)[1].upper()[1:]
+		return hasattr(module,subclass) and getattr(module,subclass) or FileInfo
+	return [getFileInfoClass(f)(f) for f in fileList]
+
+
+
+if __name__ == '__main__':
+	for info in listDirectory("/media/binoytv9/EnTeRtAiNmEnT/SoNgZz/FIFA theme muziq",[".mp3"]):
+		print "\n".join(["%s=%s" %(k,v) for k,v in info.items()])
+	print
